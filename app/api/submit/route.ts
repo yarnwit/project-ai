@@ -43,9 +43,9 @@ export async function POST(request: Request) {
       }
     `;
 
-    // 🌟 ไม้ตาย: บังคับให้ Gemini ตอบเป็น JSON โครงสร้างเป๊ะๆ
-    const model = genAI.getGenerativeModel({ 
-      model: 'gemini-1.5-flash',
+    // 🌟 แก้ไขชื่อโมเดลตรงนี้เป็น gemini-1.5-flash-8b
+   const model = genAI.getGenerativeModel({ 
+      model: 'gemini-2.5-flash-lite', // <--- แก้เป็นคำนี้
       generationConfig: {
         responseMimeType: "application/json",
       }
