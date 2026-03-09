@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link"; // เพิ่มการ Import Link ของ Next.js
 
 export default function Home() {
   const [issue, setIssue] = useState("");
@@ -15,7 +16,6 @@ export default function Home() {
     setMessage(null);
 
     try {
-      // เรียกใช้งาน API ที่เราสร้างไว้ในขั้นตอนก่อนหน้า
       const response = await fetch("/api/submit", {
         method: "POST",
         headers: {
@@ -30,7 +30,6 @@ export default function Home() {
         throw new Error(data.error || "เกิดข้อผิดพลาดในการส่งข้อมูล");
       }
 
-      // แสดงข้อความสำเร็จและล้างฟอร์ม
       setMessage({ text: "ส่งข้อมูลแจ้งปัญหาเรียบร้อยแล้ว! ระบบกำลังดำเนินการ", type: "success" });
       setIssue("");
     } catch (error) {
@@ -45,7 +44,19 @@ export default function Home() {
   };
 
   return (
-    <main className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
+    // เพิ่ม relative เพื่อให้ปุ่ม Admin ไปเกาะที่มุมขวาบนได้
+    <main className="min-h-screen bg-gray-50 flex items-center justify-center p-4 relative">
+      
+      {/* เพิ่มปุ่มไปหน้า Admin Dashboard ไว้ที่มุมขวาบน */}
+      <div className="absolute top-4 right-4">
+        <Link 
+          href="/dashboard" 
+          className="text-sm text-blue-600 hover:text-blue-800 bg-white px-4 py-2 rounded-md shadow-sm border border-gray-200 hover:bg-gray-50 transition-colors flex items-center gap-2"
+        >
+          ⚙️ ไปหน้า Admin Dashboard
+        </Link>
+      </div>
+
       <div className="max-w-md w-full bg-white rounded-xl shadow-lg p-8">
         <div className="text-center mb-6">
           <h1 className="text-2xl font-bold text-gray-900">SmartRoute</h1>
@@ -82,7 +93,6 @@ export default function Home() {
           </button>
         </form>
 
-        {/* แสดงข้อความแจ้งเตือนเมื่อส่งสำเร็จหรือเกิดข้อผิดพลาด */}
         {message && (
           <div
             className={`mt-4 p-4 rounded-lg text-sm ${
