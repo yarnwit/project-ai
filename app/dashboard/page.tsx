@@ -44,7 +44,7 @@ export default function Dashboard() {
     <main className="min-h-screen bg-gray-100 p-8">
       <div className="max-w-6xl mx-auto">
         <div className="flex justify-between items-center mb-6">
-          <h1 className="text-3xl font-bold text-gray-800">Admin Dashboard</h1>
+          <h1 className="text-3xl font-bold text-gray-800">Admin Dashboard (E-Commerce)</h1>
           <button 
             onClick={fetchTickets}
             className="px-4 py-2 bg-white border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 hover:bg-gray-50"
@@ -102,20 +102,34 @@ function TicketRow({ ticket, onUpdate }: { ticket: Ticket; onUpdate: () => void 
   const handleApprove = async () => {
     setIsUpdating(true);
     
-    // อัปเดตข้อมูลลงฐานข้อมูล พร้อมเก็บเวลา routed_at สำหรับวัด KPI
-    const { error } = await supabase
-      .from("tickets")
-      .update({
-        status: "routed",
-        final_category: selectedCategory,
-        routed_at: new Date().toISOString(),
-      })
-      .eq("id", ticket.id);
+    try {
+      // เรียกใช้งาน API Endpoint ที่ 2 แทนการเรียก Supabase โดยตรง
+      const response = await fetch('/api/approve', {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          ticket_id: ticket.id,
+          final_category: selectedCategory
+        }),
+      });
 
-    if (!error) {
-      onUpdate(); // รีเฟรชตารางหลังอัปเดตเสร็จ
-    } else {
-      alert("เกิดข้อผิดพลาดในการบันทึกข้อมูล");
+      const result = await response.json();
+
+      if (!response.ok) {
+        throw new Error(result.error || 'เกิดข้อผิดพลาดจากเซิร์ฟเวอร์');
+      }
+
+      // รีเฟรชตารางหลังอัปเดตเสร็จ
+      onUpdate(); 
+    } catch (error) {
+      if (error instanceof Error) {
+        alert(error.message);
+      } else {
+        alert("เกิดข้อผิดพลาดในการบันทึกข้อมูล");
+      }
+    } finally {
       setIsUpdating(false);
     }
   };
@@ -147,15 +161,16 @@ function TicketRow({ ticket, onUpdate }: { ticket: Ticket; onUpdate: () => void 
       <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
         {isPending ? (
           <div className="flex flex-col gap-2">
-            {/* จุด HITL ที่ 1: แอดมินตรวจสอบและแก้ไขหมวดหมู่ได้ผ่าน Dropdown  */}
+            {/* จุด HITL ที่ 1: แอดมินตรวจสอบและแก้ไขหมวดหมู่ได้ผ่าน Dropdown แบบ E-commerce */}
             <select
               value={selectedCategory}
               onChange={(e) => setSelectedCategory(e.target.value)}
               className="block w-full text-sm border-gray-300 rounded-md shadow-sm focus:border-blue-500 focus:ring-blue-500 border p-1"
             >
-              <option value="Bug">Bug (บั๊ก/ระบบขัดข้อง)</option>
-              <option value="Billing">Billing (การเงิน/ชำระเงิน)</option>
-              <option value="General">General (สอบถามทั่วไป)</option>
+              <option value="Shipping">Shipping (การจัดส่ง/ตามพัสดุ)</option>
+              <option value="Refund">Refund (คืนเงิน/เคลมสินค้า)</option>
+              <option value="Payment">Payment (ปัญหาการชำระเงิน)</option>
+              <option value="Product">Product (สอบถามข้อมูลสินค้า)</option>
             </select>
             
             {/* จุด HITL ที่ 2: แอดมินต้องเป็นคนกด Approve เสมอ  */}
