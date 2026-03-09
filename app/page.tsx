@@ -43,14 +43,20 @@ export default function Home() {
         throw new Error(data.error || "เกิดข้อผิดพลาดในการส่งข้อมูล");
       }
 
-      setMessage({ text: "ส่งข้อมูลแจ้งปัญหาเรียบร้อยแล้ว!", type: "success" });
-      setIssue("");
+      // ✅ จุดที่ปรับแก้: แยกว่า AI ตอบเอง หรือ ส่งให้แอดมิน
+      if (data.action === "reply") {
+        setMessage({ text: `🤖 AI ตอบกลับ: ${data.reply_message}`, type: "success" });
+      } else {
+        setMessage({ text: `📨 ${data.reply_message || "รับเรื่องแล้ว ระบบกำลังส่งข้อมูลให้แอดมินตรวจสอบค่ะ"}`, type: "success" });
+        
+        // ถ้าเป็นการส่งให้แอดมิน ให้ปิดหน้าต่างแชทลงอัตโนมัติหลังผ่านไป 4 วินาที
+        setTimeout(() => {
+          setIsChatOpen(false);
+          setMessage(null);
+        }, 4000);
+      }
       
-      // หลังจากส่งสำเร็จ 3 วินาที ให้ปิดหน้าต่างแชทลงอัตโนมัติ
-      setTimeout(() => {
-        setIsChatOpen(false);
-        setMessage(null);
-      }, 3000);
+      setIssue("");
 
     } catch (error) {
       setMessage({ text: error instanceof Error ? error.message : "เกิดข้อผิดพลาด", type: "error" });
@@ -118,7 +124,7 @@ export default function Home() {
         </div>
       </section>
 
-      {/* 3. ส่วน Floating Chat Widget (Bottom Right) ✅ */}
+      {/* 3. ส่วน Floating Chat Widget (Bottom Right) */}
       <div className="fixed bottom-6 right-6 z-50">
         
         {/* หน้าต่างแชท (Panel) - จะแสดงเมื่อ isChatOpen เป็น true */}
@@ -149,8 +155,9 @@ export default function Home() {
                 </div>
               </div>
 
+              {/* ✅ แสดงข้อความตอบกลับจากระบบตรงนี้ */}
               {message && (
-                <div className={`p-3 rounded-lg text-xs ${message.type === "success" ? "bg-green-50 text-green-800 border" : "bg-red-50 text-red-800 border"}`}>
+                <div className={`p-3 rounded-lg text-sm leading-relaxed shadow-sm ${message.type === "success" ? "bg-green-50 text-green-800 border border-green-200" : "bg-red-50 text-red-800 border border-red-200"}`}>
                   {message.text}
                 </div>
               )}
@@ -182,7 +189,7 @@ export default function Home() {
           </div>
         )}
 
-        {/* ปุ่มลอยเปิด/ปิดแชท (Floating Button) ✅ */}
+        {/* ปุ่มลอยเปิด/ปิดแชท (Floating Button) */}
         <button
           onClick={() => setIsChatOpen(!isChatOpen)}
           className={`flex items-center justify-center w-14 h-14 rounded-full shadow-lg transition-all duration-300 ease-out ${

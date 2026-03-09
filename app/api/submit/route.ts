@@ -2,12 +2,18 @@ import { NextResponse } from 'next/server';
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import { supabase } from '@/app/lib/supabase';
 
-// 2. ตั้งค่าการเชื่อมต่อ Google Gemini
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!);
+
+const storePolicy = `
+[ข้อมูลและนโยบายร้านค้า TechStore]
+- การจัดส่ง: ตัดรอบส่ง 14.00 น. จัดส่งผ่าน J&T และ Kerry ใช้เวลา 2-3 วันทำการ
+- นโยบายคืนเงิน/เคลม: ลูกค้าสามารถเคลมสินค้าได้ภายใน 7 วันหลังจากได้รับสินค้า โดยต้องมี "วิดีโอขณะแกะกล่อง" ประกอบการเคลม และจะได้รับเงินคืนภายใน 3-5 วันทำการ
+- การรับประกัน: สินค้าประเภทหูฟังและอุปกรณ์อิเล็กทรอนิกส์รับประกัน 1 ปี
+- เวลาทำการแอดมิน: จันทร์-เสาร์ เวลา 09:00 - 18:00 น.
+`;
 
 export async function POST(request: Request) {
   try {
-    // รับข้อมูลจากหน้า Frontend
     const body = await request.json();
     const { user_issue } = body;
 
@@ -15,36 +21,43 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'กรุณาระบุปัญหาที่ต้องการแจ้ง' }, { status: 400 });
     }
 
-    // 3. กำหนด Guardrail ให้ AI (บังคับรูปแบบและหมวดหมู่)
+    // ปรับ Prompt ให้สั้นและชัดเจนขึ้น แยกขาวดำชัดเจน
     const prompt = `
-      คุณคือผู้ช่วย AI สำหรับคัดกรอง Ticket แจ้งปัญหาของลูกค้าในร้านค้าออนไลน์ (E-commerce)
-      จงอ่านข้อความปัญหาด้านล่างนี้ และวิเคราะห์ว่าควรจัดอยู่ในหมวดหมู่ใดเพื่อส่งให้แผนกที่เกี่ยวข้อง
+      จงวิเคราะห์ข้อความจากลูกค้า: "${user_issue}"
       
-      กฎข้อบังคับ (Guardrails):
-      1. คุณต้องตอบกลับมาเป็นรูปแบบ JSON เท่านั้น ห้ามพิมพ์ข้อความอธิบายใดๆ ทั้งสิ้น
-      2. Key ใน JSON ต้องมีแค่ 2 ตัวคือ "ai_category" และ "confidence_score"
-      3. ค่าของ "ai_category" บังคับให้เลือกจาก 4 คำนี้เท่านั้น: 
-         - "Shipping" (ปัญหาการจัดส่ง/ติดตามพัสดุ)
-         - "Refund" (ขอคืนเงิน/เคลมสินค้าชำรุด)
-         - "Payment" (โอนเงินแล้วยอดไม่ขึ้น/ปัญหาชำระเงิน)
-         - "Product" (สอบถามวิธีใช้งาน/ข้อมูลสินค้า)
-         ห้ามสร้างหมวดหมู่ใหม่เด็ดขาด
-      4. ค่าของ "confidence_score" ต้องเป็นตัวเลขจำนวนเต็มตั้งแต่ 0 ถึง 100
+      ข้อมูลนโยบายร้านค้า:
+      ${storePolicy}
       
-      ข้อความปัญหา: "${user_issue}"
+      กฎการตัดสินใจ (สำคัญมาก):
+      1. ถ้าลูกค้า "ถามข้อมูลทั่วไป" ที่มีคำตอบในนโยบายร้านค้า (เช่น ถามว่ากี่วันถึง, ตัดรอบกี่โมง, เคลมยังไง, ประกันกี่ปี) 
+         -> ให้กำหนด "action": "reply" และ "reply_text": "สร้างคำตอบที่สุภาพสรุปจากนโยบาย"
+      2. ถ้าลูกค้า "แจ้งปัญหาเฉพาะบุคคล" (เช่น ของพังขอเคลม, ตามพัสดุว่าถึงไหน, โอนเงินไม่เข้า) หรือเป็นเรื่องที่ไม่อยู่ในนโยบาย 
+         -> ให้กำหนด "action": "route" และ "reply_text": "รับเรื่องแล้ว ระบบกำลังส่งข้อมูลให้แอดมินตรวจสอบค่ะ"
+      
+      โครงสร้าง JSON ที่ต้องการ:
+      {
+        "action": "ต้องเป็นคำว่า reply หรือ route เท่านั้น",
+        "reply_text": "ข้อความที่จะตอบลูกค้า",
+        "ai_category": "เลือก 1 คำจาก: Shipping, Refund, Payment, Product",
+        "confidence_score": ตัวเลข 0-100
+      }
     `;
 
-    // 4. เรียกใช้งาน Gemini AI (ใช้โมเดล flash เพราะทำงานได้รวดเร็ว)
-    const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' });
+    // 🌟 ไม้ตาย: บังคับให้ Gemini ตอบเป็น JSON โครงสร้างเป๊ะๆ
+    const model = genAI.getGenerativeModel({ 
+      model: 'gemini-2.5-flash',
+      generationConfig: {
+        responseMimeType: "application/json",
+      }
+    });
+
     const result = await model.generateContent(prompt);
+    // ไม่ต้อง replace ตัด ```json ออกแล้ว เพราะ API จะคืนค่าเป็น JSON เพียวๆ
     const responseText = result.response.text();
+    const aiData = JSON.parse(responseText);
 
-    // 5. ทำความสะอาดข้อความและแปลงเป็น JSON Object
-    // (ลบ ```json และ ``` ที่ AI อาจจะติดมาด้วยออกไป)
-    const cleanJsonText = responseText.replace(/```json/g, '').replace(/```/g, '').trim();
-    const aiData = JSON.parse(cleanJsonText);
+    const ticketStatus = aiData.action === 'reply' ? 'auto_answered' : 'pending';
 
-    // 6. บันทึกข้อมูลลงฐานข้อมูล (Relational Data) ใน Supabase
     const { data, error } = await supabase
       .from('tickets')
       .insert([
@@ -52,7 +65,8 @@ export async function POST(request: Request) {
           user_issue: user_issue,
           ai_category: aiData.ai_category,
           confidence_score: aiData.confidence_score,
-          status: 'pending' // สถานะเริ่มต้น รอแอดมินมา Approve (HITL)
+          status: ticketStatus, 
+          final_category: aiData.action === 'reply' ? aiData.ai_category : null
         }
       ])
       .select();
@@ -62,10 +76,10 @@ export async function POST(request: Request) {
       throw new Error('ไม่สามารถบันทึกข้อมูลลงฐานข้อมูลได้');
     }
 
-    // 7. ส่งผลลัพธ์กลับไปให้ Frontend
     return NextResponse.json({ 
       success: true, 
-      message: 'บันทึก Ticket และวิเคราะห์ AI สำเร็จ',
+      action: aiData.action,
+      reply_message: aiData.reply_text,
       data: data 
     });
 
